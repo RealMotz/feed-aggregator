@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/RealMotz/feed-aggregator/internal/database"
@@ -17,10 +16,10 @@ func (cfg *apiConfig) getFeeds(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	respondWithJSON(w, http.StatusOK, databaseFeedsToFeeds(feeds))
+	respondWithJSON(w, http.StatusOK, dbFeedsToFeeds(feeds))
 }
 
-func (cfg *apiConfig) createFeed(w http.ResponseWriter, r *http.Request) {
+func (cfg *apiConfig) createFeed(w http.ResponseWriter, r *http.Request, user database.User) {
 	type parameters struct {
 		Name string
 		Url  string
@@ -30,15 +29,6 @@ func (cfg *apiConfig) createFeed(w http.ResponseWriter, r *http.Request) {
 	err := decoder.Decode(&params)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "couln't decode body")
-		return
-	}
-
-	// TODO: Refactor this section
-	apikey := strings.Split(r.Header.Get("Authorization"), " ")[1]
-
-	user, err := cfg.DB.GetUserByApikey(r.Context(), apikey)
-	if err != nil {
-		respondWithError(w, http.StatusBadRequest, "user not found")
 		return
 	}
 

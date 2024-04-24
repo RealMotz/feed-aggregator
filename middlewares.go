@@ -3,6 +3,8 @@ package main
 import (
 	"net/http"
 	"strings"
+
+	"github.com/RealMotz/feed-aggregator/internal/database"
 )
 
 func middlewareCors(next http.Handler) http.Handler {
@@ -18,7 +20,9 @@ func middlewareCors(next http.Handler) http.Handler {
 	})
 }
 
-func (cfg *apiConfig) middlewareAuth(next http.HandlerFunc) http.HandlerFunc {
+type authHandler func(w http.ResponseWriter, r *http.Request, user database.User)
+
+func (cfg *apiConfig) middlewareAuth(handler authHandler) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		apikey := strings.Split(r.Header.Get("Authorization"), " ")
 		if len(apikey) < 2 || apikey[0] != "ApiKey" {
@@ -26,6 +30,12 @@ func (cfg *apiConfig) middlewareAuth(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
-		next.ServeHTTP(w, r)
+		user, err := cfg.DB.GetUserByApikey(r.Context(), apikey[1])
+		if err != nil {
+			respondWithError(w, http.StatusBadRequest, "user not found")
+			return
+		}
+
+		handler(w, r, user)
 	})
 }

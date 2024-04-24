@@ -24,6 +24,14 @@ type User struct {
 	Apikey    string    `json:"api_key"`
 }
 
+type FeedFollow struct {
+	ID        uuid.UUID `json:"id"`
+	FeedId    uuid.UUID `json:"feed_id"`
+	UserID    uuid.UUID `json:"user_id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
 func dbUserToUser(dbUser database.User) User {
 	return User{
 		ID:        dbUser.ID,
@@ -45,10 +53,28 @@ func dbFeedToFeed(dbFeed database.Feed) Feed {
 	}
 }
 
-func databaseFeedsToFeeds(feeds []database.Feed) []Feed {
+func dbFeedFollowToFeedFollow(dbFeedFollow database.FeedFollow) FeedFollow {
+	return FeedFollow{
+		ID:        dbFeedFollow.ID,
+		FeedId:    dbFeedFollow.FeedID,
+		UserID:    dbFeedFollow.UserID,
+		CreatedAt: dbFeedFollow.CreatedAt,
+		UpdatedAt: dbFeedFollow.UpdatedAt,
+	}
+}
+
+func dbFeedsToFeeds(feeds []database.Feed) []Feed {
 	result := make([]Feed, len(feeds))
 	for i, feed := range feeds {
 		result[i] = dbFeedToFeed(feed)
+	}
+	return result
+}
+
+func dbFeedFollowsToFeedFollows(follows []database.FeedFollow) []FeedFollow {
+	result := make([]FeedFollow, len(follows))
+	for i, follow := range follows {
+		result[i] = dbFeedFollowToFeedFollow(follow)
 	}
 	return result
 }
