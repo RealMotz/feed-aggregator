@@ -45,9 +45,12 @@ func main() {
 
 	mux.HandleFunc("GET /v1/readiness", readinessHandler)
 	mux.HandleFunc("GET /v1/err", errorHandler)
+
 	mux.HandleFunc("POST /v1/users", cfg.createUser)
 	mux.HandleFunc("GET /v1/users", cfg.middlewareAuth(cfg.getUser))
+
 	mux.HandleFunc("POST /v1/feeds", cfg.middlewareAuth(cfg.createFeed))
+	mux.HandleFunc("GET /v1/feeds", cfg.getFeeds)
 
 	err = server.ListenAndServe()
 	if err != nil {

@@ -10,6 +10,16 @@ import (
 	"github.com/google/uuid"
 )
 
+func (cfg *apiConfig) getFeeds(w http.ResponseWriter, r *http.Request) {
+	feeds, err := cfg.DB.GetFeeds(r.Context())
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "cannot fetch feed data")
+		return
+	}
+
+	respondWithJSON(w, http.StatusOK, databaseFeedsToFeeds(feeds))
+}
+
 func (cfg *apiConfig) createFeed(w http.ResponseWriter, r *http.Request) {
 	type parameters struct {
 		Name string
@@ -23,6 +33,7 @@ func (cfg *apiConfig) createFeed(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// TODO: Refactor this section
 	apikey := strings.Split(r.Header.Get("Authorization"), " ")[1]
 
 	user, err := cfg.DB.GetUserByApikey(r.Context(), apikey)
