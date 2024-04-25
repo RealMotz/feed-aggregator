@@ -44,6 +44,10 @@ func dbUserToUser(dbUser database.User) User {
 }
 
 func dbFeedToFeed(dbFeed database.Feed) Feed {
+	var lastFetch *time.Time = nil
+	if dbFeed.LastFetchAt.Valid {
+		lastFetch = &dbFeed.LastFetchAt.Time
+	}
 	return Feed{
 		ID:          dbFeed.ID,
 		CreatedAt:   dbFeed.CreatedAt,
@@ -51,7 +55,7 @@ func dbFeedToFeed(dbFeed database.Feed) Feed {
 		Name:        dbFeed.Name,
 		Url:         dbFeed.Url,
 		UserID:      dbFeed.UserID,
-		LastFetchAt: &dbFeed.LastFetchAt.Time,
+		LastFetchAt: lastFetch,
 	}
 }
 
