@@ -7,4 +7,4 @@ RETURNING *;
 SELECT * FROM feed_follows where user_id = $1;
 
 -- name: DeleteFeedFollow :exec
-DELETE FROM feed_follows where id = $1;
+DELETE FROM feed_follows where id = $1 and user_id = $2;
