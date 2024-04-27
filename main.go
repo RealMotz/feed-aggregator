@@ -1,15 +1,12 @@
 package main
 
 import (
-	"context"
 	"database/sql"
 	"encoding/xml"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
-	"sync"
-	"time"
 
 	"github.com/RealMotz/feed-aggregator/internal/database"
 	"github.com/joho/godotenv"
@@ -47,7 +44,7 @@ func main() {
 		Handler: corsMux,
 	}
 
-	go createInterval(10, cfg.ProcessOldestNFeedsFromDB)
+	go startScraping(dbQueries, 10, 10)
 
 	mux.HandleFunc("GET /v1/readiness", readinessHandler)
 	mux.HandleFunc("GET /v1/err", errorHandler)
@@ -62,52 +59,19 @@ func main() {
 	mux.HandleFunc("DELETE /v1/feed_follows/{id}", cfg.middlewareAuth(cfg.deleteFeedFollow))
 	mux.HandleFunc("GET /v1/feed_follows", cfg.middlewareAuth(cfg.getFeedFollow))
 
+	mux.HandleFunc("GET /v1/feeds/fetch", cfg.middlewareAuth(cfg.fetchDataFromFeed2))
+
 	err = server.ListenAndServe()
 	if err != nil {
 		log.Fatal(err)
 	}
 }
 
-func createInterval(seconds int, fn func(int32)) {
-	ticker := time.NewTicker(time.Duration(seconds) * time.Second)
-	quit := make(chan struct{})
-
-	for {
-		select {
-		case <-ticker.C:
-			fn(10)
-		case <-quit:
-			ticker.Stop()
-			return
-		}
-	}
-}
-
-func (cfg *apiConfig) ProcessOldestNFeedsFromDB(n int32) {
-	ctx := context.Background()
-	feeds, err := cfg.DB.GetNextFeedsToFetch(ctx, n)
+func (cfg *apiConfig) fetchDataFromFeed2(w http.ResponseWriter, r *http.Request, user database.User) {
+	resp, err := http.Get("https://blog.boot.dev/index.xml")
 	if err != nil {
-		fmt.Println("error fetching feed")
-		return
-	}
-
-	var group sync.WaitGroup
-
-	for _, feed := range feeds {
-		group.Add(1)
-		go func(url string) {
-			defer group.Done()
-			fetchDataFromFeed(url)
-		}(feed.Url)
-	}
-
-	group.Wait()
-}
-
-func fetchDataFromFeed(feedURL string) {
-	resp, err := http.Get(feedURL)
-	if err != nil {
-		fmt.Println("error fetching feed")
+		respondWithError(w, http.StatusInternalServerError, "error fetching feed")
+		fmt.Printf("Error GET: %v\n", err)
 		return
 	}
 	defer resp.Body.Close()
@@ -129,6 +93,5 @@ func fetchDataFromFeed(feedURL string) {
 	decoder := xml.NewDecoder(resp.Body)
 	decoder.Decode(&data)
 
-	fmt.Printf("processing %s\n", feedURL)
-	fmt.Println(len(data.Channel.ItemList))
+	respondWithJSON(w, http.StatusCreated, data.Channel.ItemList)
 }
