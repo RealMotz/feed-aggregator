@@ -2,7 +2,6 @@ package main
 
 import (
 	"database/sql"
-	"encoding/xml"
 	"fmt"
 	"log"
 	"net/http"
@@ -44,7 +43,9 @@ func main() {
 		Handler: corsMux,
 	}
 
-	go startScraping(dbQueries, 10, 10)
+	concurrentFeedsToScrap := 10
+	scrappingIntervalInSecs := 300
+	go startScraping(dbQueries, concurrentFeedsToScrap, scrappingIntervalInSecs)
 
 	mux.HandleFunc("GET /v1/readiness", readinessHandler)
 	mux.HandleFunc("GET /v1/err", errorHandler)
@@ -58,40 +59,10 @@ func main() {
 	mux.HandleFunc("POST /v1/feed_follows", cfg.middlewareAuth(cfg.createFeedFollow))
 	mux.HandleFunc("DELETE /v1/feed_follows/{id}", cfg.middlewareAuth(cfg.deleteFeedFollow))
 	mux.HandleFunc("GET /v1/feed_follows", cfg.middlewareAuth(cfg.getFeedFollow))
-
-	mux.HandleFunc("GET /v1/feeds/fetch", cfg.middlewareAuth(cfg.fetchDataFromFeed2))
+	mux.HandleFunc("GET /v1/posts", cfg.middlewareAuth(cfg.getPosts))
 
 	err = server.ListenAndServe()
 	if err != nil {
 		log.Fatal(err)
 	}
-}
-
-func (cfg *apiConfig) fetchDataFromFeed2(w http.ResponseWriter, r *http.Request, user database.User) {
-	resp, err := http.Get("https://blog.boot.dev/index.xml")
-	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "error fetching feed")
-		fmt.Printf("Error GET: %v\n", err)
-		return
-	}
-	defer resp.Body.Close()
-
-	type itemList struct {
-		Title           string `xml:"title"`
-		Link            string `xml:"link"`
-		PublicationDate string `xml:"pubDate"`
-		Description     string `xml:"description"`
-	}
-	type xmlEntry struct {
-		ItemList []itemList `xml:"item"`
-	}
-	type xmlData struct {
-		Channel xmlEntry `xml:"channel"`
-	}
-
-	data := xmlData{}
-	decoder := xml.NewDecoder(resp.Body)
-	decoder.Decode(&data)
-
-	respondWithJSON(w, http.StatusCreated, data.Channel.ItemList)
 }

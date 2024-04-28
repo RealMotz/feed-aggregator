@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"encoding/xml"
 	"fmt"
 	"log"
@@ -10,10 +11,11 @@ import (
 	"time"
 
 	"github.com/RealMotz/feed-aggregator/internal/database"
+	"github.com/google/uuid"
 )
 
-func startScraping(db *database.Queries, maxFeeds int, interval int) {
-	ticker := time.NewTicker(time.Duration(interval) * time.Second)
+func startScraping(db *database.Queries, maxFeeds int, intervalInSec int) {
+	ticker := time.NewTicker(time.Duration(intervalInSec) * time.Second)
 	quit := make(chan struct{})
 
 	for {
@@ -47,23 +49,47 @@ func ProcessOldestFeedsFromDB(db *database.Queries, maxFeeds int) {
 
 func scrapeFeed(group *sync.WaitGroup, db *database.Queries, feed database.Feed) {
 	defer group.Done()
-	_, err := db.MarkFeedFetched(context.Background(), feed.ID)
-	if err != nil {
-		log.Printf("couldn't mark feed %s fetched %v", feed.Name, err)
-		return
-	}
-
 	items, err := fetchDataFromFeed(feed.Url)
 	if err != nil {
 		log.Printf("couldn't fetch feed %s", feed.Name)
 		return
 	}
 
-	fmt.Printf("processing %s\n", feed.Url)
-	fmt.Println(len(items))
+	for _, item := range items {
+		createPost(feed.ID, item, db)
+	}
+
+	_, err = db.MarkFeedFetched(context.Background(), feed.ID)
+	if err != nil {
+		log.Printf("couldn't mark feed %s fetched %v", feed.Name, err)
+		return
+	}
 }
 
-func fetchDataFromFeed(feedURL string) ([]itemList, error) {
+func createPost(feedId uuid.UUID, item item, db *database.Queries) {
+	parsedPubDate, err := time.Parse(time.RFC1123Z, item.PublicationDate)
+	if err != nil {
+		log.Printf("error parsing publication date: %v", err)
+		return
+	}
+
+	_, err = db.CreatePost(context.Background(), database.CreatePostParams{
+		ID:          uuid.New(),
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+		Title:       item.Title,
+		Url:         item.Link,
+		Description: item.Description,
+		PublisedAt:  parsedPubDate,
+		FeedID:      feedId,
+	})
+
+	if err != nil {
+		return
+	}
+}
+
+func fetchDataFromFeed(feedURL string) ([]item, error) {
 	resp, err := http.Get(feedURL)
 	if err != nil {
 		fmt.Println("error fetching feed")
@@ -82,15 +108,15 @@ func fetchDataFromFeed(feedURL string) ([]itemList, error) {
 	return data.Channel.ItemList, nil
 }
 
-type itemList struct {
-	Title           string `xml:"title"`
-	Link            string `xml:"link"`
-	PublicationDate string `xml:"pubDate"`
-	Description     string `xml:"description"`
+type item struct {
+	Title           string         `xml:"title"`
+	Link            string         `xml:"link"`
+	PublicationDate string         `xml:"pubDate"`
+	Description     sql.NullString `xml:"description"`
 }
 
 type xmlEntry struct {
-	ItemList []itemList `xml:"item"`
+	ItemList []item `xml:"item"`
 }
 
 type xmlData struct {
