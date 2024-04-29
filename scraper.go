@@ -14,14 +14,14 @@ import (
 	"github.com/google/uuid"
 )
 
-func startScraping(db *database.Queries, maxFeeds int, intervalInSec int) {
+func startScraping(db *database.Queries, maxFeedsToFetch int, intervalInSec int) {
 	ticker := time.NewTicker(time.Duration(intervalInSec) * time.Second)
 	quit := make(chan struct{})
 
 	for {
 		select {
 		case <-ticker.C:
-			ProcessOldestFeedsFromDB(db, maxFeeds)
+			ProcessOldestFeedsFromDB(db, maxFeedsToFetch)
 		case <-quit:
 			ticker.Stop()
 			return
@@ -29,13 +29,15 @@ func startScraping(db *database.Queries, maxFeeds int, intervalInSec int) {
 	}
 }
 
-func ProcessOldestFeedsFromDB(db *database.Queries, maxFeeds int) {
+func ProcessOldestFeedsFromDB(db *database.Queries, maxFeedsToFetch int) {
 	ctx := context.Background()
-	feeds, err := db.GetNextFeedsToFetch(ctx, int32(maxFeeds))
+	feeds, err := db.GetNextFeedsToFetch(ctx, int32(maxFeedsToFetch))
 	if err != nil {
 		fmt.Println("error fetching feed")
 		return
 	}
+
+	log.Printf("Found %v feeds to fetch!", len(feeds))
 
 	group := &sync.WaitGroup{}
 
@@ -67,10 +69,18 @@ func scrapeFeed(group *sync.WaitGroup, db *database.Queries, feed database.Feed)
 }
 
 func createPost(feedId uuid.UUID, item item, db *database.Queries) {
-	parsedPubDate, err := time.Parse(time.RFC1123Z, item.PublicationDate)
+	var parsedPublicationDate time.Time
+	rfc1123z, err := time.Parse(time.RFC1123Z, item.PublicationDate)
 	if err != nil {
-		log.Printf("error parsing publication date: %v", err)
-		return
+		rfc1123, err := time.Parse(time.RFC1123, item.PublicationDate)
+		if err != nil {
+			log.Printf("error parsing publication date: %v", err)
+			return
+		}
+		parsedPublicationDate = rfc1123
+
+	} else {
+		parsedPublicationDate = rfc1123z
 	}
 
 	_, err = db.CreatePost(context.Background(), database.CreatePostParams{
@@ -80,7 +90,7 @@ func createPost(feedId uuid.UUID, item item, db *database.Queries) {
 		Title:       item.Title,
 		Url:         item.Link,
 		Description: item.Description,
-		PublisedAt:  parsedPubDate,
+		PublisedAt:  parsedPublicationDate,
 		FeedID:      feedId,
 	})
 

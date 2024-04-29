@@ -5,18 +5,10 @@ RETURNING *;
 
 -- name: GetPostsByUser :many
 SELECT
-posts.id,
-posts.created_at,
-posts.updated_at,
-posts.title,
-posts.url,
-posts.description,
-posts.publised_at
+posts.*
 FROM posts
-JOIN feeds
-    ON posts.feed_id = feeds.id
-JOIN users
-    ON users.id = feeds.user_id
-WHERE users.id = $1
-ORDER BY posts.publised_at
+JOIN feed_follows
+    ON feed_follows.feed_id = posts.feed_id
+WHERE feed_follows.user_id = $1
+ORDER BY posts.publised_at DESC
 LIMIT $2;

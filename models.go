@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"time"
 
 	"github.com/RealMotz/feed-aggregator/internal/database"
@@ -31,6 +32,17 @@ type FeedFollow struct {
 	UserID    uuid.UUID `json:"user_id"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type Post struct {
+	ID          uuid.UUID      `json:"id"`
+	CreatedAt   time.Time      `json:"created_at"`
+	UpdatedAt   time.Time      `json:"updated_at"`
+	Title       string         `json:"title"`
+	Url         string         `json:"url"`
+	Description sql.NullString `json:"description"`
+	PublisedAt  time.Time      `json:"published_at"`
+	FeedId      uuid.UUID      `json:"feed_id"`
 }
 
 func dbUserToUser(dbUser database.User) User {
@@ -69,6 +81,19 @@ func dbFeedFollowToFeedFollow(dbFeedFollow database.FeedFollow) FeedFollow {
 	}
 }
 
+func dbPostToPost(dbPost database.Post) Post {
+	return Post{
+		ID:          dbPost.ID,
+		CreatedAt:   dbPost.CreatedAt,
+		UpdatedAt:   dbPost.UpdatedAt,
+		Title:       dbPost.Title,
+		Url:         dbPost.Url,
+		Description: dbPost.Description,
+		PublisedAt:  dbPost.PublisedAt,
+		FeedId:      dbPost.FeedID,
+	}
+}
+
 func dbFeedsToFeeds(feeds []database.Feed) []Feed {
 	result := make([]Feed, len(feeds))
 	for i, feed := range feeds {
@@ -81,6 +106,14 @@ func dbFeedFollowsToFeedFollows(follows []database.FeedFollow) []FeedFollow {
 	result := make([]FeedFollow, len(follows))
 	for i, follow := range follows {
 		result[i] = dbFeedFollowToFeedFollow(follow)
+	}
+	return result
+}
+
+func dbPostsToPosts(posts []database.Post) []Post {
+	result := make([]Post, len(posts))
+	for i, post := range posts {
+		result[i] = dbPostToPost(post)
 	}
 	return result
 }
